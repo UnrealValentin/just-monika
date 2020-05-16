@@ -1,5 +1,6 @@
-// Load up the discord.js library
+// Load up all the libraries
 const Discord = require("discord.js");
+const ytdl = require('ytdl-core');
 
 // This is your client. Some people call it `bot`, some people call it `self`, 
 // some might call it `cootchie`. Either way, when you see `client.something`, or `bot.something`,
@@ -10,6 +11,19 @@ const client = new Discord.Client();
 const config = require("./config.json");
 // config.token contains the bot's token
 // config.prefix contains the message prefix.
+
+//The SongQueue for the music bot.
+const queue = new Map();
+
+//Function for handling of playing music
+function play(guild, song) {
+  const serverQueue = queue.get(guild.id);
+  if (!song) {
+    serverQueue.voiceChannel.leave();
+    queue.delete(guild.id);
+    return;
+  }
+}
 
 client.on("ready", () => {
   // This event will run if the bot starts, and logs in, successfully.
@@ -33,6 +47,10 @@ client.on("guildDelete", guild => {
 
 
 client.on("message", async message => {
+
+  const serverQueue = queue.get(message.guild.id);
+
+
   // This event will run on every single message received, from any channel or DM.
   
   // It's good practice to ignore other bots. This also makes your bot ignore itself
@@ -58,6 +76,60 @@ client.on("message", async message => {
         "⠛⢿⣿⣿⣿⣦⠁⢿⣿⣿⡄⢿⣿⡇⣸⣿⣿⠿⠛⠁⠄⠄⠄\n" +
         "⠄⠄⠉⠻⣿⣿⣿⣦⡙⠻⣷⣾⣿⠃⠿⠋⠁⠄⠄⠄⠄⠄⢀\n" +
         "⣮⣥⠄⠄⠄⠛⢿⣿⣿⡆⣿⡿⠃⠄⠄⠄⠄⠄⠄⠄⣠⣴⣿```");
+
+        const voiceChannel = message.member.voice.channel;
+        if (!voiceChannel) {message.channel.send("..but ..you aren't in a voice channel my dear :cry:"); return;}
+        
+        const permissions = voiceChannel.permissionsFor(message.client.user);
+        if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
+          message.channel.send(
+          "..but ..I can't join your voice channel :memee:"
+          );
+          return;
+        }
+
+        const songInfo = await ytdl.getInfo(args[1]);
+        const song = {
+          title: songInfo.title,
+          url: songInfo.video_url,
+        };
+
+        const queueContruct = {
+          textChannel: message.channel,
+          voiceChannel: voiceChannel,
+          connection: null,
+          songs: [],
+          volume: 5,
+          playing: true,
+         };
+         // Setting the queue using our contract
+         queue.set(message.guild.id, queueContruct);
+         // Pushing the song to our songs array
+         queueContruct.songs.push(song);
+         
+         try {
+          // Here we try to join the voicechat and save our connection into our object.
+          var connection = await voiceChannel.join();
+          queueContruct.connection = connection;
+          // Calling the play function to start a song
+          play(message.guild, queueContruct.songs[0]);
+         } catch (err) {
+          // Printing the error message if the bot fails to join the voicechat
+          console.log(err);
+          queue.delete(message.guild.id);
+          return message.channel.send(err);
+         }
+
+        const dispatcher = serverQueue.connection
+          .play(ytdl(song.url))
+          .on("finish", () => {
+            serverQueue.songs.shift();
+            play(guild, serverQueue.songs[0]);
+          })
+          .on("error", error => console.error(error));
+        dispatcher.setVolumeLogarithmic(serverQueue.volume / 5);
+        serverQueue.textChannel.send(`Start playing: **${song.title}**`);
+
 
         return;
     }
