@@ -16,6 +16,76 @@ const config = require("./config.json");
 const queue = new Map();
 
 //Function for handling of playing music
+async function execute(message, serverQueue) {
+  const args = "https://www.youtube.com/watch?v=j8Bau7iO0f0"
+
+  const voiceChannel = message.member.voice.channel;
+  if (!voiceChannel)
+    return message.channel.send(
+      "..but ..you aren't in a voice channel my dear :cry:"
+    );
+  const permissions = voiceChannel.permissionsFor(message.client.user);
+  if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
+    return message.channel.send(
+      "..but ..I cant join your voice channel my dear :cry:"
+    );
+  }
+
+  const songInfo = await ytdl.getInfo(args);
+  const song = {
+    title: songInfo.title,
+    url: songInfo.video_url
+  };
+
+  if (!serverQueue) {
+    const queueContruct = {
+      textChannel: message.channel,
+      voiceChannel: voiceChannel,
+      connection: null,
+      songs: [],
+      volume: 5,
+      playing: true
+    };
+
+    queue.set(message.guild.id, queueContruct);
+
+    queueContruct.songs.push(song);
+
+    try {
+      var connection = await voiceChannel.join();
+      queueContruct.connection = connection;
+      play(message.guild, queueContruct.songs[0]);
+    } catch (err) {
+      console.log(err);
+      queue.delete(message.guild.id);
+      return message.channel.send(err);
+    }
+  } else {
+    serverQueue.songs.push(song);
+    //return message.channel.send(`${song.title} has been added to the queue!`);
+    return message.channel.send(`J̶̠̦̉͐ṵ̶̈ͅs̵̝̓t̵̞̀̿ ̸̬̊M̸͔̥͂o̶͎̓͜n̶͕͆͝i̶̠̐̌k̵̼͙̅͐ä̸͈̘̏`);
+  }
+}
+
+function skip(message, serverQueue) {
+  if (!message.member.voice.channel)
+    return message.channel.send(
+      "..but ..you aren't in a voice channel my dear :cry:"
+    );
+  if (!serverQueue)
+    return message.channel.send("There is no song that I could skip!");
+  serverQueue.connection.dispatcher.end();
+}
+
+function stop(message, serverQueue) {
+  if (!message.member.voice.channel)
+    return message.channel.send(
+      "..but ..you aren't in a voice channel my dear :cry:"
+    );
+  serverQueue.songs = [];
+  serverQueue.connection.dispatcher.end();
+}
+
 function play(guild, song) {
   const serverQueue = queue.get(guild.id);
   if (!song) {
@@ -23,6 +93,16 @@ function play(guild, song) {
     queue.delete(guild.id);
     return;
   }
+
+  const dispatcher = serverQueue.connection
+    .play(ytdl(song.url))
+    .on("finish", () => {
+      serverQueue.songs.shift();
+      play(guild, serverQueue.songs[0]);
+    })
+    .on("error", error => console.error(error));
+  dispatcher.setVolumeLogarithmic(serverQueue.volume / 5);
+  serverQueue.textChannel.send(`**J̶̠̦̉͐ṵ̶̈ͅs̵̝̓t̵̞̀̿ ̸̬̊M̸͔̥͂o̶͎̓͜n̶͕͆͝i̶̠̐̌k̵̼͙̅͐ä̸͈̘̏**`);
 }
 
 client.on("ready", () => {
@@ -47,8 +127,6 @@ client.on("guildDelete", guild => {
 
 
 client.on("message", async message => {
-
-  const serverQueue = queue.get(message.guild.id);
 
 
   // This event will run on every single message received, from any channel or DM.
@@ -77,66 +155,15 @@ client.on("message", async message => {
         "⠄⠄⠉⠻⣿⣿⣿⣦⡙⠻⣷⣾⣿⠃⠿⠋⠁⠄⠄⠄⠄⠄⢀\n" +
         "⣮⣥⠄⠄⠄⠛⢿⣿⣿⡆⣿⡿⠃⠄⠄⠄⠄⠄⠄⠄⣠⣴⣿```");
 
-        const voiceChannel = message.member.voice.channel;
-        if (!voiceChannel) {message.channel.send("..but ..you aren't in a voice channel my dear :cry:"); return;}
-        
-        const permissions = voiceChannel.permissionsFor(message.client.user);
-        if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
-          message.channel.send(
-          "..but ..I can't join your voice channel :memee:"
-          );
-          return;
-        }
-
-        const songInfo = await ytdl.getInfo(args[1]);
-        const song = {
-          title: songInfo.title,
-          url: songInfo.video_url,
-        };
-
-        const queueContruct = {
-          textChannel: message.channel,
-          voiceChannel: voiceChannel,
-          connection: null,
-          songs: [],
-          volume: 5,
-          playing: true,
-         };
-         // Setting the queue using our contract
-         queue.set(message.guild.id, queueContruct);
-         // Pushing the song to our songs array
-         queueContruct.songs.push(song);
-         
-         try {
-          // Here we try to join the voicechat and save our connection into our object.
-          var connection = await voiceChannel.join();
-          queueContruct.connection = connection;
-          // Calling the play function to start a song
-          play(message.guild, queueContruct.songs[0]);
-         } catch (err) {
-          // Printing the error message if the bot fails to join the voicechat
-          console.log(err);
-          queue.delete(message.guild.id);
-          return message.channel.send(err);
-         }
-
-        const dispatcher = serverQueue.connection
-          .play(ytdl(song.url))
-          .on("finish", () => {
-            serverQueue.songs.shift();
-            play(guild, serverQueue.songs[0]);
-          })
-          .on("error", error => console.error(error));
-        dispatcher.setVolumeLogarithmic(serverQueue.volume / 5);
-        serverQueue.textChannel.send(`Start playing: **${song.title}**`);
-
-
+        message.channel.send("Write +just monika in a server where I am in for another special secret :3")
         return;
     }
 
-    message.channel.send("Just Monika\n\nJūst Mønika\n\nJů§ţ Moñįkã\njű§ť mØñĮka\n\n•°°•.•.ØŅ ŁÝ MØÑĮĶ Ã.•.•°°•");
+    message.channel.send("Just Monika\n\nJūst Mønika\n\nJů§ţ Moñįkã\njű§ť mØñĮka\nJ̶̠̦̉͐ṵ̶̈ͅs̵̝̓t̵̞̀̿ ̸̬̊M̸͔̥͂o̶͎̓͜n̶͕͆͝i̶̠̐̌k̵̼͙̅͐ä̸͈̘̏\n\n\n\nJ̷̯̫͕͖̠͑̓̊́͋̂͊͋̀͒͘u̷̢̲̼̻̙̼̣̜̤̝̽́̽̏͛͐̍͐̚͝s̶̤͈͙̪̤͓̙̳͖̜̖̓̾̏̇̑̅̿͋t̷̩̻̀̽͌̂͆͘͜ ̷͔̣̖̝̭̭͎͉̍̈́̎̓͘͜ͅͅM̴̛̘̘͍͉̥͚̏̿͊̋ͅͅǫ̷̢̛̛̦͎̭̫̯͚̘̫̙́̄͜n̴̛͓̤͙̬̲̪̣̘̗̮̳͌̍̿̊̊̽i̴̧̟̜͖̘͉̗̬̰͋̇͑̀̅̓̄͆̾͜ͅͅk̸̡̰̳͕̤̩̬̹͆̆͊͋͑ͅͅà̶̢̢̪̱͚̱̟͍̪̻̍\n\n\n\n\n•°°•.•.Ø̷̨̛̹̭̘̮͖̥̙̻̱͙͂̂͗͒̽̓͌̇̅̓̈̚͠͝Ņ̷̡̛̠̗̙̖͔͈̟̤̹̖̫̟̠̂̇̃́͊̾̓̓̂͘̚͝ ̴̡̦̻͕̙̗͒̌Ł̸̨̳̯͔͍̠̱̌̍̔̀̌͠͝Ý̴̛̞̜̘̼̝̩̗̰̜̮̟͇͓̠̿̄̇͌̿̿̈́ ̷̨͚͈̼̟̜̩͓̂̀̅̑̄̉̚͝M̵͓̙̼͉̙̞̻̅̅̾̋͑̈́̋̿͋̈́̇̚͝͝͠Ø̷̡̢̣̙̌̾̐͗͗̾̆̽͘͠ͅÑ̵̦̮̙̫̭͋̕Į̵̧̧̳͉͎̤̩̘̳̳̉͆̊͊͊͑̚Ķ̶͙̮̘̗̎̓͛͜ ̶̡͚̳͎̜͙͕̞̯̼̯̙̥̭̭̈́̌̅̋͋̇̕Ã̴̢̹̘̺̥̗̪͙̮̪̻͎̀͛̔͗͜.•.•°°•");
     return;
   }
+
+  const serverQueue = queue.get(message.guild.id);
   
   // Also good practice to ignore any message that does not start with our prefix, 
   // which is set in the configuration file.
@@ -156,6 +183,13 @@ client.on("message", async message => {
     // The second ping is an average latency between the bot and the websocket server (one-way, not round-trip)
     const m = await message.channel.send("Ping?");
     m.edit(`Ping? Pong! Latency is ${m.createdTimestamp - message.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms`);
+  }
+
+  if(command === "just") {
+    if(args[0] == "monika") {
+      execute(message, serverQueue);
+      message.delete().catch(O_o=>{});
+    }
   }
   
   if(command === "say") {
